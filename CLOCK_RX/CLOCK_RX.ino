@@ -23,10 +23,11 @@ bool ledo = 1;
 byte ledb = 0;
 int ledst = 0;
 int leddir = 1;
-int moto_en = 0;
-int moto_r = 0;
-int bri = 0;
+bool moto_en = 0;
+bool moto_r = 0;
+byte bri = 0;
 int brii = 0;
+int led_speed = 500;
 byte led_bri = 0;
 byte led_color = 0;
 uint16_t ledc;
@@ -67,38 +68,117 @@ void setup() {
   power.bodInSleep(false); // рекомендуется выключить bod во сне для сохранения энергии (по умолчанию false - выключен!!)
   detachInterrupt(0);
   delay(200);
-
 }
 
 void loop() {
   moto.tick();  //тикаем двигло
   byte pipeNo;
-  bri = map(brii, 0, 1000, 0, ledb);  // мапим яркость
-
+  if ( radio.available(&pipeNo)) {  // слушаем эфир со всех труб
+    radio.read( &recieve_data, sizeof(recieve_data) );
+    radio.writeAckPayload(pipeNo, &voltage, sizeof(voltage));
+    // чиатем входящий сигнал
+    if (recieve_data[0] == 0x1) { // затухание или загорание ленты
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      ledo = !ledo;
+      ledst = 1;
+      timer0 = millis();
+      Serial.println(ledo);
+      Serial.println(ledst);
+    }
+    if (recieve_data[0] == 0x2) { // мерцание ленты
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      ledst = 2;
+      timer0 = millis();
+      Serial.println(ledst);
+    }
+    if (recieve_data[0] == 0x3) { // яркость ленты - перебор
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      if (led_bri == 4) led_bri = 0;
+      led_bri++;
+      timer0 = millis();
+      Serial.println(ledb);
+    }
+    if (recieve_data[0] == 0x4) {       //  перебор цвета ленты
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      if (led_color == 3) led_color = 0;
+      led_color++;
+      timer0 = millis();
+      Serial.println(ledc);
+    }
+    if (recieve_data[0] == 0x5) {   // Включить - выключить стрелки
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      moto_en = !moto_en;
+      moto.invertEn(moto_en);
+      timer0 = millis();
+      Serial.println(moto_en);
+    }
+    if (recieve_data[0] == 0x6) {         //Инверсия движения
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      moto_r = !moto_r;
+      moto.reverse(moto_r);
+      timer0 = millis();
+      Serial.println(moto_r);
+    }
+    if (recieve_data[0] == 0x7) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      timer0 = millis();
+    }
+    if (recieve_data[0] == 0x8) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
+      Serial.println(recieve_data[0]);
+      recieve_data[0] = 0x0;
+      timer0 = millis();
+    }
+  }
+  bri = map(brii, 0, led_speed, 0, ledb);  // мапим яркость
   switch (led_bri) {
     case 0:
       ledb = 0;
+      Serial.println(ledb);
+      break;
     case 1:
       ledb = 30;
+      Serial.println(ledb);
+      break;
     case 2:
       ledb = 70;
+      Serial.println(ledb);
+      break;
     case 3:
       ledb = 150;
+      Serial.println(ledb);
+      break;
     case 4:
       ledb = 230;
+      Serial.println(ledb);
+      break;
   }
   switch (led_color) {
     case 0:
       ledc = mBlack;
+      Serial.println(ledc);
+      break;
     case 1:
       ledc = mWhite;
+      Serial.println(ledc);
+      break;
     case 2:
       ledc = mBlue;
+      Serial.println(ledc);
+      break;
     case 3:
       ledc = mRed;
+      Serial.println(ledc);
+      break;
   }
   if (ledo == 0 && ledst == 1) {  //загорелся
-    if (brii < 999) {
+    if (brii < led_speed) {
       strip.setBrightness(bri);
       strip.fill(ledc);
       strip.show();
@@ -115,7 +195,6 @@ void loop() {
       Serial.println(bri);
     }
   }
-
   if (ledst == 2) {
     if (1 > brii) leddir = -leddir;   //ТУДА-СЮДА
     if (999 < brii) leddir = -leddir;
@@ -125,16 +204,17 @@ void loop() {
     strip.show();
     Serial.println(bri);
   }
-
   if (millis() - timer0 >= 3600000) {   // таймер на 30min пинать питальник - прижать
     timer0 = millis();
     Pstate = 1;
   }
   if (millis() - timer1 >= 12000) {   // таймер на 12s пинать питальник
     digitalWrite(moto_p, LOW);
+    Serial.println("mp_low");
   }
   if (millis() - timer1 >= 12400) {   // таймер на 12s пинать питальник
     digitalWrite(moto_p, HIGH);
+    Serial.println("mp_hi");
     timer1 = millis();
   }
   if (millis() - timer2 >= 30000) {   // таймер на 30 сек - замер напруги
@@ -167,60 +247,7 @@ void loop() {
         power.sleep(SLEEP_FOREVER);
         break;
     }*/
-  if ( radio.available(&pipeNo)) {  // слушаем эфир со всех труб
-    radio.read( &recieve_data, sizeof(recieve_data) );
-    radio.writeAckPayload(pipeNo, &voltage, sizeof(voltage));
-    // чиатем входящий сигнал
-    if (recieve_data[0] == 0x1) { // затухание или загорание ленты
-      recieve_data[0] = 0x0;
-      ledo = !ledo;
-      ledst = 1;
-      timer0 = millis();
-      Serial.println(ledo);
-    }
-    if (recieve_data[0] == 0x2) { // мерцание ленты
-      recieve_data[0] = 0x0;
-      ledst = 2;
-      timer0 = millis();
-      Serial.println(ledst);
-    }
-    if (recieve_data[0] == 0x3) { // яркость ленты - перебор
-      recieve_data[0] = 0x0;
-      if (led_bri == 4) led_bri = 0;
-      led_bri++;
-      timer0 = millis();
-      Serial.println(ledb);
-    }
-    if (recieve_data[0] == 0x4) {       //  перебор цвета ленты
-      recieve_data[0] = 0x0;
-      if (led_color == 3) led_color = 0;
-      led_color++;
-      timer0 = millis();
-      Serial.println(ledc);
-    }
-    if (recieve_data[0] == 0x5) {   // Включить - выключить стрелки
-      recieve_data[0] = 0x0;
-      moto_en = !moto_en;
-      moto.invertEn(moto_en);
-      timer0 = millis();
-      Serial.println(moto_en);
-    }
-    if (recieve_data[0] == 0x6) {         //Инверсия движения
-      recieve_data[0] = 0x0;
-      moto_r = !moto_r;
-      moto.reverse(moto_r);
-      timer0 = millis();
-      Serial.println(moto_r);
-    }
-    if (recieve_data[0] == 0x7) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
-      recieve_data[0] = 0x0;
-      timer0 = millis();
-    }
-    if (recieve_data[0] == 0x8) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
-      recieve_data[0] = 0x0;
-      timer0 = millis();
-    }
-  }
+
 }
 /*
   void wkp() {
