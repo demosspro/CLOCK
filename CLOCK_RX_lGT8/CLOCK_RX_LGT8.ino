@@ -1,4 +1,4 @@
-#define STRIP_PIN 5     // пин ленты
+#define STRIP_PIN 8     // пин ленты
 #define NUMLEDS 240      // кол-во светодиодов
 #define COLOR_DEBTH 2
 #include <microLED.h>   // подключаем библу
@@ -6,18 +6,18 @@ microLED<NUMLEDS, STRIP_PIN, MLED_NO_CLOCK, LED_WS2812, ORDER_GRB, CLI_AVER> str
 
 #include <SPI.h>
 #include "RF24.h"
-#include "GyverStepper.h"u
-GStepper<STEPPER2WIRE> moto(96, A1, A2);  //dir step en
+#include "GyverStepper.h"
+GStepper<STEPPER2WIRE> moto(96, 3, 4);  //dir step en
 
-#include <GyverPower.h>
+#include <PMU.h>
 int Pstate = 0;
 
-RF24 radio(9, 10); // "создать" модуль на пинах 9 и 10
+RF24 radio(6, 7); // "создать" модуль на пинах 9 и 10
 byte address[][6] = {"1Node", "2Node", "3Node", "4Node", "5Node", "6Node"};
 uint32_t timer0, timer1, timer2, timer3;
 float voltage = 4.2;
 int PUpin = 2;
-int moto_p = 4;
+//int moto_p = 5;
 int power_mesure = 690;
 bool ledo = 1;
 static int ledb = 0;
@@ -34,16 +34,16 @@ uint16_t recieve_data[1]; // массив принятых данных
 void setup() {
   ledc = mWhite;
   strip.setBrightness(0);
-  pinMode(PUpin, OUTPUT);
+  pinMode(PUpin, INPUT);
   digitalWrite(PUpin, HIGH);
-  pinMode(A3, OUTPUT);
-  digitalWrite(A3, HIGH);
+  pinMode(5, OUTPUT);
+  digitalWrite(5, HIGH);
   //  pinMode(moto_p, OUTPUT);
   //  digitalWrite(moto_p, HIGH);
   pinMode(power_mesure, INPUT); // вход с делителя
-  analogReference(INTERNAL);
-  //Serial.begin(57600); //открываем порт для связи с ПК
-  //Serial.println("start_setup");
+  analogReference(INTERNAL2V56);
+  Serial.begin(57600); //открываем порт для связи с ПК
+  Serial.println("start_setup");
 
   moto.setSpeedDeg(spd);         // в градусах/сек
 
@@ -59,7 +59,7 @@ void setup() {
   radio.setDataRate (RF24_1MBPS); //скорость обмена. На выбор RF24_2MBPS, RF24_1MBPS, RF24_250KBPS
   //должна быть одинакова на приёмнике и передатчике!
   //при самой низкой скорости имеем самую высокую чувствительность и дальность!!
-  //Serial.println("start_radio");
+  Serial.println("start_radio");
   radio.powerUp(); //начать работу
   radio.startListening();  //начинаем слушать эфир, мы приёмный модуль
   //power.autoCalibrate(); // автоматическая калибровка ~ 2 секунды , средняя но достаточная точность
@@ -78,60 +78,60 @@ void loop() {
     radio.writeAckPayload(pipeNo, &voltage, sizeof(voltage));
     // чиатем входящий сигнал
     if (recieve_data[0] == 0x1) { // затухание или загорание ленты
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       ledo = !ledo;
       ledst = 1;
       timer0 = millis();
-      ////Serial.println(ledo);
-      ////Serial.println(ledst);
+      //Serial.println(ledo);
+      //Serial.println(ledst);
     }
     if (recieve_data[0] == 0x2) { // мерцание ленты
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       ledst = 2;
       timer0 = millis();
-      ////Serial.println(ledst);
+      //Serial.println(ledst);
     }
     if (recieve_data[0] == 0x3) { // яркость ленты - перебор
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       if (led_bri == 4) led_bri = 0;
       led_bri++;
       timer0 = millis();
-      //Serial.println(ledb);
+      Serial.println(ledb);
     }
     if (recieve_data[0] == 0x4) {       //  перебор цвета ленты
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       led_color++;
       if (led_color == 4) led_color = 1;
       timer0 = millis();
-      //Serial.println(ledc);
+      Serial.println(ledc);
     }
     if (recieve_data[0] == 0x5) {   // Включить - выключить стрелки
-      ////Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       moto_en = !moto_en;
-      digitalWrite(A3, moto_en);
+      digitalWrite(5, moto_en);
       timer0 = millis();
-      //Serial.println(moto_en);
+      Serial.println(moto_en);
     }
     if (recieve_data[0] == 0x6) {         //Инверсия движения
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       spd = -spd;
       moto.setSpeedDeg(spd);
       timer0 = millis();
-      ////Serial.println(moto_r);
+      //Serial.println(moto_r);
     }
     if (recieve_data[0] == 0x7) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       timer0 = millis();
     }
     if (recieve_data[0] == 0x8) {         //((recieve_data[0] == 0x2) && (last_data[0] != 0x3) && (last_data[0] != 0x4))  { // резерв
-      //Serial.println(recieve_data[0]);
+      Serial.println(recieve_data[0]);
       recieve_data[0] = 0x0;
       timer0 = millis();
     }
@@ -140,41 +140,41 @@ void loop() {
   switch (led_bri) {
     case 0:
       ledb = 0;
-      ////Serial.println(ledb);
+      //Serial.println(ledb);
       break;
     case 1:
       ledb = 30;
-      ////Serial.println(ledb);
+      //Serial.println(ledb);
       break;
     case 2:
       ledb = 70;
-      ////Serial.println(ledb);
+      //Serial.println(ledb);
       break;
     case 3:
       ledb = 140;
-      ////Serial.println(ledb);
+      //Serial.println(ledb);
       break;
     case 4:
       ledb = 200;
-      ////Serial.println(ledb);
+      //Serial.println(ledb);
       break;
   }
   switch (led_color) {
     //  case 0:
     //   ledc = mBlack;
-    ////Serial.println(ledc);
+    //Serial.println(ledc);
     //  break;
     case 1:
       ledc = mWhite;
-      ////Serial.println(ledc);
+      //Serial.println(ledc);
       break;
     case 2:
       ledc = mBlue;
-      ////Serial.println(ledc);
+      //Serial.println(ledc);
       break;
     case 3:
       ledc = mRed;
-      ////Serial.println(ledc);
+      //Serial.println(ledc);
       break;
   }
 
@@ -188,7 +188,7 @@ void loop() {
       if (bri <= ledb) {
         strip.setBrightness(bri);
         bri++;
-        //Serial.println(bri);
+        Serial.println(bri);
       }
     }
     if (ledo == 1 && ledst == 1) {  //потух
@@ -196,7 +196,7 @@ void loop() {
         strip.setBrightness(bri);
 
         bri--;
-        //Serial.println(bri);
+        Serial.println(bri);
       }
     }
     if (ledst == 2) {
@@ -205,38 +205,36 @@ void loop() {
       strip.setBrightness(bri);
 
       bri = bri + leddir;
-      //Serial.println(bri);
+      Serial.println(bri);
     }
     strip.fill(ledc);
     strip.show();
   }
-  if (millis() - timer2 >= 30000) {   // таймер на 30 сек - замер напруги
+  if (millis() - timer2 >= 5000) {   // таймер на 30 сек - замер напруги
     timer2 = millis();
     int power_mesure = analogRead(A0);
-    voltage = power_mesure * 0.0048;
-    //Serial.println (power_mesure);
-    //Serial.println (voltage);
-    if (voltage < 3.1) {
-      Pstate = 1;
-    }
+    voltage = power_mesure * 0.00232;
+    Serial.println (power_mesure);
+    Serial.println (voltage);
+   // if (voltage < 3.1) {
+   //   Pstate = 1;
+  //  }
   }
   switch (Pstate) {
     case 1:
       Pstate = 0;
-      ////Serial.println("timer"); //спать
+      Serial.println("timer"); //спать
       delay(200);
       digitalWrite(PUpin, LOW);
       radio.powerDown();
       attachInterrupt(0, wkp, HIGH);
-      power.hardwareDisable(PWR_ADC | PWR_TIMER1);
-      power.sleep(SLEEP_FOREVER);
+      PMU.sleep(PM_POFFS1, SLEEP_FOREVER);
       break;
   }
 }
 void wkp() {
   detachInterrupt(0);
-  power.hardwareEnable(PWR_ADC | PWR_TIMER1);  //проснись
-  power.autoCalibrate();
-  //Serial.print("WKPstart");
+
+  Serial.print("WKPstart");
   digitalWrite(PUpin, HIGH);
 }
