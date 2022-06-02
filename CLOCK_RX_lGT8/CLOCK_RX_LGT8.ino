@@ -7,7 +7,7 @@ microLED<NUMLEDS, STRIP_PIN, MLED_NO_CLOCK, LED_WS2812, ORDER_GRB, CLI_AVER> str
 #include <SPI.h>
 #include "RF24.h"
 #include "GyverStepper.h"
-GStepper<STEPPER2WIRE> moto(96, 3, 4);  //dir step en
+GStepper<STEPPER2WIRE> moto(192, 3, 4);  //dir step en
 
 #include <PMU.h>
 int Pstate = 0;
@@ -24,7 +24,7 @@ static int ledb = 0;
 int ledst = 0;
 int leddir = 1;
 bool moto_en = 0;
-int spd = 4000;
+int spd = 5000;
 int led_bri = 0;
 static int bri = 0;
 int led_color = 0;
@@ -32,20 +32,21 @@ uint16_t ledc;
 uint16_t recieve_data[1]; // массив принятых данных
 
 void setup() {
+  moto.setRunMode(KEEP_SPEED);
+  moto.setSpeed(spd);         // в градусах/сек
+  moto.enable();
   ledc = mWhite;
   strip.setBrightness(0);
   pinMode(PUpin, INPUT);
   digitalWrite(PUpin, HIGH);
   pinMode(5, OUTPUT);
-  digitalWrite(5, HIGH);
+  digitalWrite(5, LOW);
   //  pinMode(moto_p, OUTPUT);
   //  digitalWrite(moto_p, HIGH);
   pinMode(power_mesure, INPUT); // вход с делителя
   analogReference(INTERNAL2V56);
   Serial.begin(57600); //открываем порт для связи с ПК
   Serial.println("start_setup");
-
-  moto.setSpeedDeg(spd);         // в градусах/сек
 
   radio.begin();               // активировать модуль
   radio.setAutoAck(1);         // режим подтверждения приёма, 1 вкл 0 выкл
@@ -216,9 +217,9 @@ void loop() {
     voltage = power_mesure * 0.00232;
     Serial.println (power_mesure);
     Serial.println (voltage);
-   // if (voltage < 3.1) {
-   //   Pstate = 1;
-  //  }
+    // if (voltage < 3.1) {
+    //   Pstate = 1;
+    //  }
   }
   switch (Pstate) {
     case 1:
